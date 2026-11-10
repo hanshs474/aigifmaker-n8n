@@ -1,0 +1,480 @@
+{
+  "name": "Turn text into animated GIFs from a form with the AI GIF Maker API",
+  "nodes": [
+    {
+      "id": "a16f0000-0001-4b20-9c01-000000000001",
+      "name": "GIF request form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -700,
+        0
+      ],
+      "webhookId": "00000000-0000-0000-0000-0000a16f0001",
+      "parameters": {
+        "formTitle": "AI GIF Maker: text to GIF",
+        "formDescription": "Describe the GIF you want: what it shows and how it moves. It is made by AI GIF Maker (aigifmaker.ai) with your own API key and opens as soon as it is ready.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Prompt",
+              "fieldType": "textarea",
+              "placeholder": "A corgi in sunglasses dancing on a beach, looping",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a16f0000-0002-4b20-9c01-000000000002",
+      "name": "Start GIF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -480,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aigifmakerApiKey01",
+          "name": "AI GIF Maker API key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "parameters": {
+        "method": "POST",
+        "url": "https://aigifmaker.ai/api/ai/generate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ provider: 'openlux', mediaType: 'image', model: 'gif-maker-v1', scene: 'text-to-image', prompt: $json['Prompt'], options: { output_format: 'gif' } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "a16f0000-0003-4b20-9c01-000000000003",
+      "name": "Accepted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -260,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "accepted-check",
+              "leftValue": "={{ $json.code === 0 && !!($json.data && $json.data.id) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "a16f0000-0004-4b20-9c01-000000000004",
+      "name": "Explain refusal",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -40,
+        -200
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "reject-msg",
+              "name": "message",
+              "type": "string",
+              "value": "={{ ($json.data && $json.data.wall) ? 'AI GIF Maker needs an API key: create one at https://aigifmaker.ai/settings/apikeys and put it in the Header Auth credential as Bearer sk-...' : /invalid api key|no auth/i.test($json.message || '') ? 'AI GIF Maker did not accept the API key. Check the Header Auth credential value is Bearer sk-... (keys: https://aigifmaker.ai/settings/apikeys).' : /insufficient credits/i.test($json.message || '') ? 'The AI GIF Maker account is out of credits. Top up at https://aigifmaker.ai/pricing' : 'AI GIF Maker refused the prompt: ' + ($json.message || 'unknown error') + '. Try rewording it.' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a16f0000-0005-4b20-9c01-000000000005",
+      "name": "Show refusal",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        180,
+        -200
+      ],
+      "webhookId": "00000000-0000-0000-0000-0000a16f0005",
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "No GIF this time",
+        "completionMessage": "={{ $json.message }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "a16f0000-0006-4b20-9c01-000000000006",
+      "name": "Wait 10s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -40,
+        40
+      ],
+      "webhookId": "00000000-0000-0000-0000-0000a16f0006",
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "a16f0000-0007-4b20-9c01-000000000007",
+      "name": "Check status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        180,
+        40
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aigifmakerApiKey01",
+          "name": "AI GIF Maker API key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "parameters": {
+        "method": "POST",
+        "url": "https://aigifmaker.ai/api/ai/query",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ taskId: $('Start GIF').item.json.data.id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "a16f0000-0008-4b20-9c01-000000000008",
+      "name": "Route by status",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        400,
+        40
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s-done",
+                    "leftValue": "={{ $json.code === 0 && $json.data.status === 'success' && ($json.data.images || []).length > 0 }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ready"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s-failed",
+                    "leftValue": "={{ $json.code !== 0 || ['failed', 'canceled'].includes($json.data && $json.data.status) }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "failed"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "still making"
+        }
+      }
+    },
+    {
+      "id": "a16f0000-0009-4b20-9c01-000000000009",
+      "name": "Open the GIF",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        640,
+        -140
+      ],
+      "webhookId": "00000000-0000-0000-0000-0000a16f0009",
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "redirect",
+        "redirectUrl": "={{ $json.data.images[0] }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "a16f0000-0010-4b20-9c01-000000000010",
+      "name": "Explain failure",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        640,
+        60
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fail-msg",
+              "name": "message",
+              "type": "string",
+              "value": "={{ 'The GIF did not finish on AI GIF Maker' + (($json.data && $json.data.errorMessage) || $json.message ? ': ' + (($json.data && $json.data.errorMessage) || $json.message) : '') + '. Its credit is refunded; try rewording the prompt.' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a16f0000-0011-4b20-9c01-000000000011",
+      "name": "Show failure",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        860,
+        60
+      ],
+      "webhookId": "00000000-0000-0000-0000-0000a16f0011",
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "The GIF failed",
+        "completionMessage": "={{ $json.message }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "a16f0000-0012-4b20-9c01-000000000012",
+      "name": "Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -560
+      ],
+      "parameters": {
+        "content": "## Text to GIF from a form\n\nTurns a prompt typed into an n8n form into an animated GIF with **AI GIF Maker** (aigifmaker.ai). Native GIF generation, no video conversion.\n\nWhen the GIF is ready the form opens it directly; refusals and failures show a plain message saying what to fix.",
+        "height": 460,
+        "width": 480
+      }
+    },
+    {
+      "id": "a16f0000-0013-4b20-9c01-000000000013",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        -560
+      ],
+      "parameters": {
+        "content": "## Setup\n\n1. Create an API key at aigifmaker.ai/settings/apikeys\n2. Add a **Header Auth** credential:\n   - Name: `Authorization`\n   - Value: `Bearer sk-...`\n3. Select it in **Start GIF** and **Check status**\n4. Activate the workflow and open the form URL\n\nEach GIF costs 1 credit on your AI GIF Maker account, the same as on the website.",
+        "height": 300,
+        "width": 400
+      }
+    },
+    {
+      "id": "a16f0000-0014-4b20-9c01-000000000014",
+      "name": "Polling",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        260
+      ],
+      "parameters": {
+        "content": "## How the wait works\n\nThe workflow checks every 10 seconds: `success` opens the GIF, `failed` / `canceled` explains why, anything else (pending, processing, or a short queue for accounts that have not bought credits) loops back to the wait.",
+        "height": 240,
+        "width": 520
+      }
+    }
+  ],
+  "connections": {
+    "GIF request form": {
+      "main": [
+        [
+          {
+            "node": "Start GIF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start GIF": {
+      "main": [
+        [
+          {
+            "node": "Accepted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accepted?": {
+      "main": [
+        [
+          {
+            "node": "Wait 10s",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Explain refusal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explain refusal": {
+      "main": [
+        [
+          {
+            "node": "Show refusal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 10s": {
+      "main": [
+        [
+          {
+            "node": "Check status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check status": {
+      "main": [
+        [
+          {
+            "node": "Route by status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by status": {
+      "main": [
+        [
+          {
+            "node": "Open the GIF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Explain failure",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 10s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explain failure": {
+      "main": [
+        [
+          {
+            "node": "Show failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
